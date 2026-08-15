@@ -1,0 +1,732 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#E6E8E4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Stray Hop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+  :root{
+    --paper:#E6E8E4; --card:#F4F5F2; --ink:#14181A; --ink-soft:#5C6560;
+    --rule:#C9CDC6; --steel:#1B4B6B; --hivis:#D2F02B; --warn:#B4471F;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{background:var(--paper);color:var(--ink);
+    font-family:'Inter',system-ui,-apple-system,sans-serif;font-size:16px;line-height:1.45;
+    padding:0 16px calc(30px + env(safe-area-inset-bottom));max-width:560px;margin:0 auto;
+    -webkit-font-smoothing:antialiased}
+  .mono{font-variant-numeric:tabular-nums}
+  .hide{display:none !important}
+
+  .strip{display:flex;align-items:center;gap:10px;padding:14px 0 12px;
+    border-bottom:2px solid var(--ink);position:sticky;top:0;background:var(--paper);z-index:900}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--hivis);
+    border:1.5px solid var(--ink);flex:none}
+  .dot.stale{background:var(--warn)} .dot.dead{background:var(--rule)}
+  .strip-txt{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .refresh{font:inherit;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    background:none;border:none;color:var(--ink);padding:6px 2px 6px 10px;cursor:pointer;flex:none}
+  .refresh:disabled{color:var(--rule)}
+
+  .eyebrow{font-size:11px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--ink-soft);margin:22px 0 6px}
+
+  .bikename{font-family:'Barlow Condensed',sans-serif;font-weight:700;
+    font-size:clamp(40px,12vw,56px);line-height:.94;letter-spacing:-.01em;word-break:break-word}
+  .addr{margin-top:9px;font-size:19px;font-weight:600;line-height:1.3}
+  .addr.pending{color:var(--ink-soft);font-weight:500;font-style:italic}
+  .hood{font-size:13px;color:var(--ink-soft);margin-top:2px}
+
+  .figs{display:flex;gap:10px;margin:16px 0 0;
+    border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);padding:14px 0}
+  .fig{flex:1;min-width:0}
+  .fig-k{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-soft);margin-bottom:3px}
+  .fig-v{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:36px;line-height:.95}
+  .fig-s{font-size:12px;color:var(--ink-soft);margin-top:3px}
+  .fig.sat .fig-v{color:var(--steel)}
+
+  .row{display:flex;gap:9px;margin-top:14px}
+  .btn{flex:1;font:inherit;font-weight:700;font-size:15px;padding:14px 8px;border-radius:4px;
+    cursor:pointer;text-align:center;text-decoration:none;display:block;border:2px solid var(--ink)}
+  .btn-go{background:var(--ink);color:var(--paper)}
+  .btn-alt{background:var(--hivis);color:var(--ink)}
+  .btn-skip{background:transparent;color:var(--ink)}
+  .btn:active{transform:translateY(1px)}
+
+  /* map */
+  #map{height:340px;margin-top:20px;border:2px solid var(--ink);border-radius:4px;
+    background:var(--card);z-index:1}
+  .leaflet-container{font-family:'Inter',sans-serif;background:var(--card)}
+  .leaflet-popup-content{margin:11px 13px;font-size:13px;line-height:1.45}
+  .leaflet-popup-content b{font-size:14px}
+  .maplegend{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:9px;font-size:11px;
+    font-weight:600;color:var(--ink-soft)}
+  .maplegend i{display:inline-block;width:11px;height:11px;border-radius:50%;
+    border:1.5px solid var(--ink);margin-right:5px;vertical-align:-1px}
+  .legendbtn{margin-left:auto;flex:none;font:inherit;font-size:11px;font-weight:700;
+    letter-spacing:.08em;text-transform:uppercase;background:var(--ink);color:var(--paper);
+    border:none;border-radius:3px;padding:7px 11px;cursor:pointer}
+
+  /* full legend sheet */
+  .sheet{position:fixed;inset:0;z-index:2000;background:rgba(20,24,26,.55);
+    display:flex;align-items:flex-end;justify-content:center;padding:0}
+  .sheet-inner{background:var(--paper);width:100%;max-width:560px;
+    max-height:88vh;overflow-y:auto;border-top:3px solid var(--ink);
+    border-radius:10px 10px 0 0;padding:20px 18px calc(26px + env(safe-area-inset-bottom))}
+  .sheet-head{display:flex;align-items:center;gap:12px;margin-bottom:4px;
+    position:sticky;top:-20px;background:var(--paper);padding:2px 0 10px}
+  .sheet-head h2{font-family:'Barlow Condensed',sans-serif;font-weight:700;
+    font-size:30px;line-height:1;flex:1}
+  .sheet-close{flex:none;font:inherit;font-size:13px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.08em;background:var(--ink);color:var(--paper);border:none;
+    border-radius:4px;padding:10px 15px;cursor:pointer}
+  .lg-sec{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--ink-soft);margin:20px 0 8px;padding-bottom:5px;border-bottom:2px solid var(--ink)}
+  .lg-item{display:flex;align-items:flex-start;gap:13px;padding:11px 0;
+    border-bottom:1px solid var(--rule)}
+  .lg-swatch{flex:none;width:44px;display:flex;align-items:center;justify-content:center;
+    padding-top:2px}
+  .lg-txt{flex:1;min-width:0}
+  .lg-txt b{display:block;font-size:15px;font-weight:600;margin-bottom:1px}
+  .lg-txt span{font-size:13px;color:var(--ink-soft);line-height:1.4}
+  .lg-note{margin-top:18px;padding:13px 14px;background:var(--card);
+    border-left:4px solid var(--steel);font-size:13px;line-height:1.55;color:var(--ink-soft)}
+  .lg-note b{color:var(--ink)}
+
+  /* custom markers */
+  .mk{display:flex;align-items:center;justify-content:center;
+    font-family:'Barlow Condensed',sans-serif;font-weight:700;
+    border:2px solid var(--ink);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .mk-bike{width:32px;height:32px;background:var(--hivis);font-size:17px}
+  .mk-hub{width:26px;height:26px;background:var(--steel);color:#fff;font-size:14px}
+  .mk-hub.best{background:var(--hivis);color:var(--ink);width:30px;height:30px;font-size:16px}
+  .mk-next{width:20px;height:20px;background:var(--paper);font-size:11px}
+  .mk-me{width:16px;height:16px;background:var(--warn);border-width:3px}
+
+  /* hub options */
+  .hubrow{display:flex;align-items:flex-start;gap:11px;width:100%;padding:12px 2px;
+    border:none;border-bottom:1px solid var(--rule);background:none;font:inherit;
+    text-align:left;cursor:pointer;color:var(--ink)}
+  .hubrow.on{background:var(--card)}
+  .hubnum{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:19px;
+    width:26px;height:26px;flex:none;border:2px solid var(--ink);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;background:var(--steel);color:#fff}
+  .hubrow:first-of-type .hubnum{background:var(--hivis);color:var(--ink)}
+  .hubmid{flex:1;min-width:0}
+  .hubname{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hubsub{font-size:12.5px;color:var(--ink-soft);margin-top:2px}
+  .hubsub b{color:var(--steel);font-weight:700}
+
+  /* queue */
+  .queue{margin-top:30px;border-top:2px solid var(--ink);padding-top:4px}
+  .qrow{display:flex;align-items:flex-start;gap:11px;width:100%;padding:13px 2px;
+    border:none;border-bottom:1px solid var(--rule);background:none;font:inherit;
+    text-align:left;cursor:pointer;color:var(--ink)}
+  .qdist{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:21px;
+    min-width:62px;flex:none;padding-top:1px}
+  .qmid{flex:1;min-width:0}
+  .qname{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qsub{font-size:12.5px;color:var(--ink-soft);margin-top:2px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .qsat{color:var(--steel);font-weight:600}
+
+  .panel{margin-top:30px;padding:22px 18px;background:var(--card);
+    border:2px dashed var(--rule);border-radius:4px;text-align:center}
+  .panel h2{font-size:18px;font-weight:700;margin-bottom:6px}
+  .panel p{font-size:14px;color:var(--ink-soft)}
+  .panel .btn{margin-top:16px;max-width:240px;margin-inline:auto}
+  .manual{margin-top:18px;text-align:left}
+  .manual label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-soft);display:block;margin-bottom:6px}
+  .manual input{width:100%;font:inherit;font-size:16px;padding:13px 12px;
+    border:2px solid var(--ink);border-radius:4px;background:var(--paper);color:var(--ink)}
+  .hits{list-style:none;margin-top:8px;max-height:210px;overflow-y:auto}
+  .hits li button{width:100%;text-align:left;font:inherit;font-size:15px;font-weight:500;
+    padding:11px 10px;background:var(--paper);border:none;border-bottom:1px solid var(--rule);
+    cursor:pointer;color:var(--ink)}
+  .hits small{display:block;font-size:12px;color:var(--ink-soft);font-weight:400}
+
+  .banner{display:flex;align-items:center;gap:10px;margin-top:16px;padding:11px 13px;
+    background:var(--hivis);border:2px solid var(--ink);border-radius:4px;font-size:13px;font-weight:600}
+  .banner button{margin-left:auto;flex:none;font:inherit;font-size:12px;font-weight:700;
+    text-transform:uppercase;letter-spacing:.06em;background:var(--ink);color:var(--paper);
+    border:none;border-radius:3px;padding:8px 11px;cursor:pointer}
+  .skipped{margin-top:18px;font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:10px}
+  .skipped button{font:inherit;font-size:12px;font-weight:700;text-decoration:underline;
+    background:none;border:none;color:var(--ink);cursor:pointer;padding:4px}
+  .foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--rule);
+    font-size:11px;color:var(--ink-soft);line-height:1.65}
+</style>
+
+<div class="strip">
+  <span class="dot dead" id="dot"></span>
+  <span class="strip-txt" id="status">Starting up</span>
+  <button class="refresh" id="refresh" disabled>Refresh</button>
+</div>
+
+<div class="panel" id="panel">
+  <h2 id="panel-h">Finding you</h2>
+  <p id="panel-p">Allow location so strays can be sorted by how far you'd walk.</p>
+  <a class="btn btn-go hide" id="panel-btn" href="#">Try again</a>
+  <div class="manual hide" id="manual">
+    <label for="where">Or set your position by hand</label>
+    <input id="where" type="search" autocomplete="off"
+           placeholder="Type a street or hub name, or paste 43.25, -79.87">
+    <ul class="hits" id="hits"></ul>
+  </div>
+</div>
+
+<main id="main" class="hide">
+  <div class="banner hide" id="banner">
+    <span id="banner-txt"></span>
+    <button id="usegps">Use GPS</button>
+  </div>
+
+  <p class="eyebrow">Go get this one</p>
+  <h1 class="bikename" id="bike">—</h1>
+  <p class="addr pending" id="addr">Looking up the address…</p>
+  <p class="hood" id="hood"></p>
+
+  <div class="figs">
+    <div class="fig">
+      <p class="fig-k">Walk to it</p>
+      <p class="fig-v" id="f-dist">—</p>
+      <p class="fig-s" id="f-dist-s"></p>
+    </div>
+    <div class="fig sat">
+      <p class="fig-k">Sitting</p>
+      <p class="fig-v" id="f-sat">—</p>
+      <p class="fig-s" id="f-sat-s"></p>
+    </div>
+  </div>
+
+  <div class="row">
+    <a class="btn btn-go" id="nav-walk" href="#" target="_blank" rel="noopener">Walk there</a>
+    <a class="btn btn-alt" id="nav-ride" href="#" target="_blank" rel="noopener">Ride there</a>
+  </div>
+
+  <div id="map"></div>
+  <p class="maplegend">
+    <span><i style="background:#B4471F"></i>You</span>
+    <span><i style="background:#D2F02B"></i>Your bike</span>
+    <span><i style="background:#1B4B6B"></i>Drop options</span>
+    <span><i style="background:#E6E8E4"></i>Other strays</span>
+    <button class="legendbtn" id="legendbtn">What's what</button>
+  </p>
+
+  <p class="eyebrow">Best hubs to drop it at</p>
+  <p style="font-size:13px;color:var(--ink-soft);margin:-2px 0 8px">
+    Ranked by how close each one leaves you to your next stray, not by how near it is to the bike.
+  </p>
+  <div id="hublist"></div>
+
+  <div class="row">
+    <a class="btn btn-skip" id="nav-drop" href="#" target="_blank" rel="noopener"
+       style="flex:1">Directions to drop hub</a>
+    <button class="btn btn-skip" id="skip" style="flex:0 0 36%">Not there</button>
+  </div>
+
+  <div class="skipped hide" id="skipwrap">
+    <span id="skiptxt"></span>
+    <button id="unskip">Undo all</button>
+  </div>
+
+  <section class="queue" id="queue"></section>
+  <p class="foot" id="foot"></p>
+</main>
+
+<div class="sheet hide" id="sheet">
+  <div class="sheet-inner">
+    <div class="sheet-head">
+      <h2>What's what</h2>
+      <button class="sheet-close" id="sheet-close">Close</button>
+    </div>
+
+    <p class="lg-sec">On the map</p>
+
+    <div class="lg-item">
+      <span class="lg-swatch"><span class="mk mk-me" style="width:16px;height:16px"></span></span>
+      <span class="lg-txt"><b>Red dot — you</b>
+        <span>Your current position. Moves as you walk.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch"><span class="mk mk-bike" style="width:30px;height:30px;font-size:16px">★</span></span>
+      <span class="lg-txt"><b>Yellow star — go get this bike</b>
+        <span>The stray at the top of the page. The closest one to you on foot.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch"><span class="mk mk-hub best" style="width:28px;height:28px;font-size:15px">1</span></span>
+      <span class="lg-txt"><b>Yellow numbered circle — chosen drop hub</b>
+        <span>The hub you have selected. Tap a different numbered circle to switch.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch"><span class="mk mk-hub" style="width:26px;height:26px;font-size:14px">3</span></span>
+      <span class="lg-txt"><b>Blue numbered circles — other drop options</b>
+        <span>Numbers match the ranked list below the map. 1 is the best chain, not the nearest hub.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch"><span class="mk mk-next" style="width:20px;height:20px;font-size:11px">▸</span></span>
+      <span class="lg-txt"><b>Pale circle with an arrow — your next stray</b>
+        <span>The bike you would walk to after dropping at the chosen hub. Changes when you pick a different hub.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch">
+        <svg width="30" height="14" aria-hidden="true"><circle cx="15" cy="7" r="5"
+          fill="#E6E8E4" stroke="#14181A" stroke-width="1.5"/></svg></span>
+      <span class="lg-txt"><b>Small hollow dots — other strays</b>
+        <span>Everything else out there right now. Tap one to see its name and distance.</span></span>
+    </div>
+
+    <p class="lg-sec">The lines</p>
+
+    <div class="lg-item">
+      <span class="lg-swatch">
+        <svg width="40" height="10" aria-hidden="true"><line x1="1" y1="5" x2="39" y2="5"
+          stroke="#14181A" stroke-width="2.5" stroke-dasharray="5,6"/></svg></span>
+      <span class="lg-txt"><b>Black dashed — you walk this</b>
+        <span>From where you are to the bike you are going to get. Straight line, not the real streets.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch">
+        <svg width="40" height="10" aria-hidden="true"><line x1="1" y1="5" x2="39" y2="5"
+          stroke="#1B4B6B" stroke-width="3.5"/></svg></span>
+      <span class="lg-txt"><b>Solid blue — you ride this</b>
+        <span>From the bike to the hub you picked. The easy part.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch">
+        <svg width="40" height="10" aria-hidden="true"><line x1="1" y1="5" x2="39" y2="5"
+          stroke="#14181A" stroke-width="2" stroke-dasharray="3,5" opacity=".6"/></svg></span>
+      <span class="lg-txt"><b>Faint dashed — your next walk</b>
+        <span>From the drop hub to the next stray. This is the distance the hub list is sorted by.</span></span>
+    </div>
+
+    <p class="lg-sec">The numbers</p>
+
+    <div class="lg-item">
+      <span class="lg-swatch" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:19px">360m</span>
+      <span class="lg-txt"><b>Walk to it</b>
+        <span>Straight-line distance to the bike. Real streets will be a bit further.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch" style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:19px;color:#1B4B6B">4h</span>
+      <span class="lg-txt"><b>Sitting</b>
+        <span>How long this page has known about the bike. Always a floor — it may have been there far longer before you first opened the page.</span></span>
+    </div>
+
+    <p class="lg-sec">Buttons</p>
+
+    <div class="lg-item">
+      <span class="lg-swatch" style="font-size:11px;font-weight:700">WALK</span>
+      <span class="lg-txt"><b>Walk there / Ride there</b>
+        <span>Opens Google Maps navigation to the bike, on foot or by bike.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch" style="font-size:11px;font-weight:700">DROP</span>
+      <span class="lg-txt"><b>Directions to drop hub</b>
+        <span>Cycling directions to whichever hub you have selected.</span></span>
+    </div>
+
+    <div class="lg-item">
+      <span class="lg-swatch" style="font-size:11px;font-weight:700">NOT<br>THERE</span>
+      <span class="lg-txt"><b>Not there</b>
+        <span>Someone took it, or it is not where the feed says. Removes it and promotes the next one. Undo brings them all back.</span></span>
+    </div>
+
+    <p class="lg-note">
+      <b>Why hub 1 is often not the closest hub.</b> The list is ranked by the walk that comes
+      <i>after</i> you drop, not by the ride to get there. Riding is roughly three times faster than
+      walking, so a longer ride that leaves you beside your next bike beats a short ride that strands you.
+    </p>
+
+    <p class="lg-note">
+      <b>All distances are straight lines.</b> Nothing here accounts for the escarpment, one-way
+      streets, or anything you cannot cut through. Treat them as comparisons between options rather
+      than as real travel distances.
+    </p>
+  </div>
+</div>
+
+<script>
+const FEED_BIKES='https://hamilton.socialbicycles.com/opendata/free_bike_status.json';
+const FEED_HUBS ='https://hamilton.socialbicycles.com/opendata/station_information.json';
+const GEOCODE   ='https://nominatim.openstreetmap.org/reverse';
+const WALK_KMH=4.8, SHOW=8, HUB_OPTS=5, HUB_POOL=14;
+const SEEN_KEY='strayhop.firstseen.v1';
+
+let hubs=null, strays=[], me=null, fetchedAt=0;
+let skipped=new Set(), pinned=null, ranked=[], hubOpts=[], chosenHub=0;
+let manualLabel=null, gpsWatch=null;
+let seen={}, addrCache={}, geoQueue=[], geoCoords={}, geoBusy=false;
+let map=null, layer=null;
+
+const $ = id=>document.getElementById(id);
+
+/* ---------- first-seen memory ---------- */
+function loadSeen(){ try{ seen=JSON.parse(localStorage.getItem(SEEN_KEY)||'{}'); }catch(e){ seen={}; } }
+function saveSeen(){ try{ localStorage.setItem(SEEN_KEY,JSON.stringify(seen)); }catch(e){} }
+function noteSeen(list){
+  const now=Date.now(), live=new Set(list.map(b=>b.bike_id));
+  for(const b of list) if(!seen[b.bike_id]) seen[b.bike_id]=now;
+  for(const id of Object.keys(seen)) if(!live.has(id)) delete seen[id];
+  saveSeen();
+}
+
+/* ---------- geometry ---------- */
+function metres(a1,o1,a2,o2){
+  const R=6371000, rad=Math.PI/180;
+  const p1=a1*rad,p2=a2*rad,dp=(a2-a1)*rad,dl=(o2-o1)*rad;
+  const x=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+  return 2*R*Math.asin(Math.sqrt(x));
+}
+function compass(a1,o1,a2,o2){
+  const rad=Math.PI/180, dl=(o2-o1)*rad, p1=a1*rad, p2=a2*rad;
+  const y=Math.sin(dl)*Math.cos(p2);
+  const x=Math.cos(p1)*Math.sin(p2)-Math.sin(p1)*Math.cos(p2)*Math.cos(dl);
+  return ['N','NE','E','SE','S','SW','W','NW'][Math.round(((Math.atan2(y,x)*180/Math.PI+360)%360)/45)%8];
+}
+const dist=m=>m<1000?Math.round(m/10)*10+' m':(m/1000).toFixed(1)+' km';
+const tidy=s=>(s||'').replace(/[~_]+/g,' ').replace(/\s+/g,' ').trim()||'Unnamed';
+function dwell(id){
+  const t=seen[id]; if(!t) return null;
+  const mins=Math.floor((Date.now()-t)/60000);
+  if(mins<2)  return {txt:'new',sub:'just appeared'};
+  if(mins<60) return {txt:mins+'m',sub:'at least'};
+  const h=Math.floor(mins/60);
+  if(h<24)    return {txt:h+'h',sub:'at least'};
+  return {txt:Math.floor(h/24)+'d',sub:'at least'};
+}
+
+/* ---------- addresses ---------- */
+const addrKey=b=>b.lat.toFixed(5)+','+b.lon.toFixed(5);
+function wantAddress(b){
+  const k=addrKey(b);
+  if(k in addrCache || geoQueue.includes(k)) return;
+  geoQueue.push(k); geoCoords[k]={lat:b.lat,lon:b.lon}; pumpGeo();
+}
+async function pumpGeo(){
+  if(geoBusy||!geoQueue.length) return;
+  geoBusy=true;
+  const k=geoQueue.shift(), c=geoCoords[k];
+  try{
+    const d=await (await fetch(`${GEOCODE}?format=jsonv2&zoom=18&lat=${c.lat}&lon=${c.lon}`)).json();
+    const a=d.address||{};
+    addrCache[k]={
+      street:[a.house_number,a.road].filter(Boolean).join(' ')||a.road||d.name||'Address unavailable',
+      hood:a.neighbourhood||a.suburb||a.city_district||''
+    };
+  }catch(e){ addrCache[k]={street:'Address unavailable',hood:''}; }
+  render();
+  setTimeout(()=>{ geoBusy=false; pumpGeo(); },1100);   // OSM: one lookup per second
+}
+
+/* ---------- data ---------- */
+async function loadHubs(){
+  if(hubs) return true;
+  try{
+    const r=await fetch(FEED_HUBS,{cache:'no-store'}); if(!r.ok) throw 0;
+    hubs=(await r.json()).data.stations.filter(s=>s.lat&&s.lon); return true;
+  }catch(e){ return false; }
+}
+async function load(){
+  $('refresh').disabled=true; setStatus('Reading the feed','stale');
+  try{
+    if(!await loadHubs()) throw 0;
+    const r=await fetch(FEED_BIKES,{cache:'no-store'}); if(!r.ok) throw 0;
+    const all=(await r.json()).data.bikes.filter(x=>x.lat&&x.lon&&!x.is_disabled);
+    noteSeen(all);
+    strays=all.filter(x=>!x.is_reserved);
+    fetchedAt=Date.now(); render();
+  }catch(e){
+    fail('Feed unreachable','Hamilton Bike Share did not answer. Check your connection, then try again.');
+  }
+  $('refresh').disabled=false;
+}
+
+/* ---------- ranking ---------- */
+function rank(){
+  return strays.filter(b=>!skipped.has(b.bike_id))
+    .map(b=>({bike:b,
+      walk:metres(me.lat,me.lon,b.lat,b.lon),
+      dir:compass(me.lat,me.lon,b.lat,b.lon),
+      sat:dwell(b.bike_id)}))
+    .sort((x,y)=>x.walk-y.walk);
+}
+
+/* For the bike you're going to get: score nearby hubs by how close each one
+   leaves you to the next stray you'd pick up after dropping. */
+function chainHubs(pick){
+  const A=pick.bike;
+  const rest=ranked.filter(r=>r.bike.bike_id!==A.bike_id).map(r=>r.bike);
+  return hubs
+    .map(h=>({h,ride:metres(A.lat,A.lon,h.lat,h.lon)}))
+    .sort((x,y)=>x.ride-y.ride)
+    .slice(0,HUB_POOL)
+    .map(({h,ride})=>{
+      let next=null, hand=Infinity;
+      for(const b of rest){
+        const d=metres(h.lat,h.lon,b.lat,b.lon);
+        if(d<hand){ hand=d; next=b; }
+      }
+      return {hub:h, ride, hand:next?hand:null, next};
+    })
+    .sort((x,y)=>(x.hand??1e9)-(y.hand??1e9))
+    .slice(0,HUB_OPTS);
+}
+
+/* ---------- map ---------- */
+function icon(cls,txt,size){
+  return L.divIcon({html:`<div class="mk ${cls}">${txt}</div>`,className:'',
+    iconSize:[size,size],iconAnchor:[size/2,size/2]});
+}
+function drawMap(pick){
+  if(typeof L==='undefined') return;
+  const A=pick.bike;
+  if(!map){
+    map=L.map('map',{zoomControl:true,attributionControl:true});
+    L.tileLayer('https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{
+      maxZoom:19, attribution:'&copy; OpenStreetMap, &copy; CARTO'}).addTo(map);
+  }
+  if(layer) layer.remove();
+  layer=L.layerGroup().addTo(map);
+  const pts=[];
+
+  L.marker([me.lat,me.lon],{icon:icon('mk-me','',16)})
+    .bindPopup('<b>You are here</b>').addTo(layer);
+  pts.push([me.lat,me.lon]);
+
+  L.marker([A.lat,A.lon],{icon:icon('mk-bike','★',32),zIndexOffset:600})
+    .bindPopup(`<b>${tidy(A.name)}</b><br>${dist(pick.walk)} walk from you`)
+    .addTo(layer);
+  pts.push([A.lat,A.lon]);
+
+  L.polyline([[me.lat,me.lon],[A.lat,A.lon]],
+    {color:'#14181A',weight:2.5,dashArray:'5,6',opacity:.8}).addTo(layer);
+
+  hubOpts.forEach((o,i)=>{
+    const best=i===chosenHub;
+    L.marker([o.hub.lat,o.hub.lon],
+      {icon:icon('mk-hub'+(best?' best':''),i+1,best?30:26),zIndexOffset:best?500:300})
+      .bindPopup(`<b>${o.hub.name}</b><br>${dist(o.ride)} ride from the bike`+
+        (o.next?`<br>then ${dist(o.hand)} walk to ${tidy(o.next.name)}`:''))
+      .on('click',()=>{ chosenHub=i; render(); })
+      .addTo(layer);
+    pts.push([o.hub.lat,o.hub.lon]);
+  });
+
+  const sel=hubOpts[chosenHub];
+  if(sel){
+    L.polyline([[A.lat,A.lon],[sel.hub.lat,sel.hub.lon]],
+      {color:'#1B4B6B',weight:3.5,opacity:.85}).addTo(layer);
+    if(sel.next){
+      L.marker([sel.next.lat,sel.next.lon],{icon:icon('mk-next','▸',20)})
+        .bindPopup(`<b>${tidy(sel.next.name)}</b><br>your next stray`).addTo(layer);
+      L.polyline([[sel.hub.lat,sel.hub.lon],[sel.next.lat,sel.next.lon]],
+        {color:'#14181A',weight:2,dashArray:'3,5',opacity:.6}).addTo(layer);
+      pts.push([sel.next.lat,sel.next.lon]);
+    }
+  }
+
+  ranked.slice(1,7).forEach(r=>{
+    if(sel&&sel.next&&r.bike.bike_id===sel.next.bike_id) return;
+    L.circleMarker([r.bike.lat,r.bike.lon],
+      {radius:5,color:'#14181A',weight:1.5,fillColor:'#E6E8E4',fillOpacity:1})
+      .bindPopup(`<b>${tidy(r.bike.name)}</b><br>${dist(r.walk)} from you`).addTo(layer);
+  });
+
+  map.fitBounds(L.latLngBounds(pts).pad(0.18));
+}
+
+/* ---------- render ---------- */
+function render(){
+  if(!me||!hubs) return;
+  ranked=rank();
+  if(!ranked.length){
+    return fail('No strays right now',
+      skipped.size?'Everything has been skipped. Undo to bring them back.'
+                  :'Nothing is locked outside a hub. Check again in a few minutes.');
+  }
+  $('panel').classList.add('hide');
+  $('main').classList.remove('hide');
+  $('banner').classList.toggle('hide',!manualLabel);
+  if(manualLabel) $('banner-txt').textContent='Measuring from '+manualLabel;
+
+  const pick=ranked.find(r=>r.bike.bike_id===pinned)||ranked[0];
+  const b=pick.bike;
+
+  $('bike').textContent=tidy(b.name);
+  const a=addrCache[addrKey(b)];
+  if(a){ $('addr').textContent=a.street; $('addr').classList.remove('pending'); $('hood').textContent=a.hood; }
+  else { $('addr').textContent='Looking up the address…'; $('addr').classList.add('pending');
+         $('hood').textContent=''; wantAddress(b); }
+
+  $('f-dist').textContent=dist(pick.walk);
+  $('f-dist-s').textContent=pick.dir+' · '+Math.max(1,Math.round((pick.walk/1000)/WALK_KMH*60))+' min on foot';
+  $('f-sat').textContent=pick.sat?pick.sat.txt:'—';
+  $('f-sat-s').textContent=pick.sat?pick.sat.sub:'';
+
+  const dest=`${b.lat},${b.lon}`;
+  $('nav-walk').href=`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=walking`;
+  $('nav-ride').href=`https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=bicycling`;
+
+  hubOpts=chainHubs(pick);
+  if(chosenHub>=hubOpts.length) chosenHub=0;
+
+  const hl=$('hublist'); hl.innerHTML='';
+  hubOpts.forEach((o,i)=>{
+    const row=document.createElement('button');
+    row.className='hubrow'+(i===chosenHub?' on':'');
+    row.innerHTML=
+      `<span class="hubnum">${i+1}</span>
+       <span class="hubmid">
+         <span class="hubname">${o.hub.name}</span>
+         <span class="hubsub">${dist(o.ride)} ride · then <b>${o.hand!=null?dist(o.hand):'—'}</b> walk to ${
+            o.next?tidy(o.next.name):'nothing nearby'}</span>
+       </span>`;
+    row.onclick=()=>{ chosenHub=i; render(); };
+    hl.appendChild(row);
+  });
+
+  const sel=hubOpts[chosenHub];
+  $('nav-drop').href = sel
+    ? `https://www.google.com/maps/dir/?api=1&destination=${sel.hub.lat},${sel.hub.lon}&travelmode=bicycling`
+    : '#';
+
+  const q=$('queue');
+  q.innerHTML='<p class="eyebrow" style="margin:18px 0 2px">Other strays</p>';
+  ranked.filter(r=>r!==pick).slice(0,SHOW).forEach(r=>{
+    const ad=addrCache[addrKey(r.bike)];
+    const row=document.createElement('button');
+    row.className='qrow';
+    row.innerHTML=
+      `<span class="qdist mono">${dist(r.walk)}</span>
+       <span class="qmid">
+         <span class="qname">${tidy(r.bike.name)}</span>
+         <span class="qsub">${ad?ad.street:'…'} · ${r.dir}${
+            r.sat?' · <span class="qsat">'+r.sat.txt+'</span>':''}</span>
+       </span>`;
+    row.onclick=()=>{ pinned=r.bike.bike_id; chosenHub=0; render(); window.scrollTo({top:0,behavior:'smooth'}); };
+    q.appendChild(row);
+  });
+  ranked.slice(0,4).forEach(r=>wantAddress(r.bike));
+
+  $('skipwrap').classList.toggle('hide',!skipped.size);
+  $('skiptxt').textContent=`${skipped.size} skipped`;
+  $('foot').textContent=
+    `${ranked.length} strays out there. Bikes are ordered by walking distance. Hubs are ordered by the walk that follows, `+
+    `so the top hub is often not the closest one to the bike — it is the one that sets up your next pickup. `+
+    `"Sitting" counts from when this page first saw the bike, so it is a floor, not an exact age. `+
+    `Map and addresses from OpenStreetMap.`;
+
+  drawMap(pick);
+  tick();
+}
+
+/* ---------- status ---------- */
+function setStatus(t,c){ $('status').textContent=t; $('dot').className='dot'+(c?' '+c:''); }
+function tick(){
+  if(!fetchedAt) return;
+  const age=Math.floor((Date.now()-fetchedAt)/1000);
+  setStatus(`${strays.length} strays · ${age<60?'just now':age<120?'1 min ago':Math.floor(age/60)+' min ago'}`,
+    age>300?'stale':'');
+}
+function fail(h,p){
+  $('main').classList.add('hide'); $('panel').classList.remove('hide');
+  $('panel-h').textContent=h; $('panel-p').textContent=p;
+  $('panel-btn').classList.remove('hide'); setStatus(h,'dead'); offerManual();
+}
+
+/* ---------- manual position ---------- */
+async function offerManual(){
+  $('manual').classList.remove('hide');
+  await loadHubs();
+  if(hubs&&!$('hits').children.length) suggest($('where').value);
+}
+function suggest(term){
+  const list=$('hits'); list.innerHTML=''; if(!hubs) return;
+  const c=term.match(/(-?\d+\.\d+)\s*[, ]\s*(-?\d+\.\d+)/);
+  if(c){
+    const la=+c[1],lo=+c[2];
+    if(Math.abs(la)<=90&&Math.abs(lo)<=180)
+      return addHit('Use these coordinates',`${la}, ${lo}`,{lat:la,lon:lo},`${la.toFixed(4)}, ${lo.toFixed(4)}`);
+  }
+  const q=term.trim().toLowerCase();
+  hubs.filter(h=>!q||h.name.toLowerCase().includes(q)||(h.address||'').toLowerCase().includes(q))
+      .slice(0,40).forEach(h=>addHit(h.name,h.address||'',h,h.name));
+}
+function addHit(title,sub,loc,label){
+  const li=document.createElement('li'), b=document.createElement('button');
+  b.innerHTML=`${title}<small>${sub}</small>`;
+  b.onclick=()=>{
+    if(gpsWatch!==null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch=null; }
+    me={lat:loc.lat,lon:loc.lon}; manualLabel=label; pinned=null; chosenHub=0;
+    $('manual').classList.add('hide'); load();
+  };
+  li.appendChild(b); $('hits').appendChild(li);
+}
+
+/* ---------- location ---------- */
+function locate(){
+  if(!navigator.geolocation||!window.isSecureContext){
+    return fail('Location unavailable here',
+      'This page needs to be served over https before it can read your position. Set your position by hand below meanwhile.');
+  }
+  if(gpsWatch!==null) navigator.geolocation.clearWatch(gpsWatch);
+  gpsWatch=navigator.geolocation.watchPosition(
+    pos=>{
+      const first=!me||manualLabel; manualLabel=null;
+      me={lat:pos.coords.latitude,lon:pos.coords.longitude};
+      $('manual').classList.add('hide');
+      first?load():render();
+    },
+    err=>{
+      if(me) return;
+      fail('Location blocked', err.code===1
+        ?'Permission was denied. Allow location in your browser settings and try again, or set your position by hand below.'
+        :'Could not get a fix. Step into open sky and try again, or set your position by hand below.');
+    },
+    {enableHighAccuracy:true,maximumAge:15000,timeout:20000});
+}
+
+/* ---------- wiring ---------- */
+$('refresh').onclick=()=>{ pinned=null; chosenHub=0; load(); };
+$('skip').onclick=()=>{
+  const p=ranked.find(r=>r.bike.bike_id===pinned)||ranked[0];
+  if(p) skipped.add(p.bike.bike_id);
+  pinned=null; chosenHub=0; render();
+};
+$('unskip').onclick=()=>{ skipped.clear(); pinned=null; chosenHub=0; render(); };
+$('panel-btn').onclick=e=>{ e.preventDefault(); locate(); };
+$('usegps').onclick=()=>locate();
+$('where').oninput=e=>suggest(e.target.value);
+
+/* legend sheet */
+const sheet=$('sheet');
+const openSheet =()=>{ sheet.classList.remove('hide'); document.body.style.overflow='hidden'; };
+const closeSheet=()=>{ sheet.classList.add('hide');   document.body.style.overflow=''; };
+$('legendbtn').onclick=openSheet;
+$('sheet-close').onclick=closeSheet;
+sheet.onclick=e=>{ if(e.target===sheet) closeSheet(); };
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheet(); });
+
+setInterval(tick,15000);
+setInterval(()=>{ if(me&&hubs) load(); },180000);
+
+loadSeen(); loadHubs(); locate();
+</script>
