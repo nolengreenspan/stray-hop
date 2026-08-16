@@ -376,7 +376,7 @@ let hubs=null, strays=[], me=null, fetchedAt=0;
 let skipped=new Set(), pinned=null, ranked=[], hubOpts=[], chosenHub=0;
 let manualLabel=null, gpsWatch=null;
 let seen={}, addrCache={}, geoQueue=[], geoCoords={}, geoBusy=false;
-let map=null, layer=null;
+let map=null, layer=null, mapBikeId=null;
 
 const $ = id=>document.getElementById(id);
 
@@ -502,8 +502,8 @@ function drawMap(pick){
   const A=pick.bike;
   if(!map){
     map=L.map('map',{zoomControl:true,attributionControl:true});
-    L.tileLayer('https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{
-      maxZoom:19, attribution:'&copy; OpenStreetMap, &copy; CARTO'}).addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   }
   if(layer) layer.remove();
   layer=L.layerGroup().addTo(map);
@@ -552,7 +552,7 @@ function drawMap(pick){
       .bindPopup(`<b>${tidy(r.bike.name)}</b><br>${dist(r.walk)} from you`).addTo(layer);
   });
 
-  map.fitBounds(L.latLngBounds(pts).pad(0.18));
+  if(mapBikeId!==A.bike_id){ mapBikeId=A.bike_id; map.fitBounds(L.latLngBounds(pts).pad(0.18)); }
 }
 
 /* ---------- render ---------- */
