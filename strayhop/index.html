@@ -104,11 +104,13 @@
   .mk{display:flex;align-items:center;justify-content:center;
     font-family:'Barlow Condensed',sans-serif;font-weight:700;
     border:2px solid var(--ink);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.35)}
-  .mk-bike{width:32px;height:32px;background:var(--hivis);font-size:17px}
-  .mk-hub{width:26px;height:26px;background:var(--steel);color:#fff;font-size:14px}
-  .mk-hub.best{background:var(--hivis);color:var(--ink);width:30px;height:30px;font-size:16px}
-  .mk-next{width:20px;height:20px;background:var(--paper);font-size:11px}
-  .mk-me{width:16px;height:16px;background:var(--warn);border-width:3px}
+  .mk-bike{width:20px;height:20px;background:var(--hivis);font-size:12px}
+  .mk-hub{width:18px;height:18px;background:var(--steel);color:#fff;font-size:11px}
+  .mk-hub.best{background:var(--hivis);color:var(--ink);width:20px;height:20px;font-size:12px}
+  .mk-next{width:14px;height:14px;background:var(--paper);font-size:9px}
+  .mk-me{width:12px;height:12px;background:var(--warn);border-width:2.5px;
+    animation:pulse 1.4s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.45;transform:scale(.7)}}
 
   /* hub options */
   .hubrow{display:flex;align-items:flex-start;gap:11px;width:100%;padding:12px 2px;
@@ -252,31 +254,31 @@
     <p class="lg-sec">On the map</p>
 
     <div class="lg-item">
-      <span class="lg-swatch"><span class="mk mk-me" style="width:16px;height:16px"></span></span>
+      <span class="lg-swatch"><span class="mk mk-me" style="width:12px;height:12px"></span></span>
       <span class="lg-txt"><b>Red dot — you</b>
         <span>Your current position. Moves as you walk.</span></span>
     </div>
 
     <div class="lg-item">
-      <span class="lg-swatch"><span class="mk mk-bike" style="width:30px;height:30px;font-size:16px">★</span></span>
+      <span class="lg-swatch"><span class="mk mk-bike" style="width:20px;height:20px;font-size:12px">★</span></span>
       <span class="lg-txt"><b>Yellow star — go get this bike</b>
         <span>The stray at the top of the page. The closest one to you on foot.</span></span>
     </div>
 
     <div class="lg-item">
-      <span class="lg-swatch"><span class="mk mk-hub best" style="width:28px;height:28px;font-size:15px">1</span></span>
+      <span class="lg-swatch"><span class="mk mk-hub best" style="width:20px;height:20px;font-size:12px">1</span></span>
       <span class="lg-txt"><b>Yellow numbered circle — chosen drop hub</b>
         <span>The hub you have selected. Tap a different numbered circle to switch.</span></span>
     </div>
 
     <div class="lg-item">
-      <span class="lg-swatch"><span class="mk mk-hub" style="width:26px;height:26px;font-size:14px">3</span></span>
+      <span class="lg-swatch"><span class="mk mk-hub" style="width:18px;height:18px;font-size:11px">3</span></span>
       <span class="lg-txt"><b>Blue numbered circles — other drop options</b>
         <span>Numbers match the ranked list below the map. 1 is the best chain, not the nearest hub.</span></span>
     </div>
 
     <div class="lg-item">
-      <span class="lg-swatch"><span class="mk mk-next" style="width:20px;height:20px;font-size:11px">▸</span></span>
+      <span class="lg-swatch"><span class="mk mk-next" style="width:14px;height:14px;font-size:9px">▸</span></span>
       <span class="lg-txt"><b>Pale circle with an arrow — your next stray</b>
         <span>The bike you would walk to after dropping at the chosen hub. Changes when you pick a different hub.</span></span>
     </div>
@@ -507,11 +509,11 @@ function drawMap(pick){
   layer=L.layerGroup().addTo(map);
   const pts=[];
 
-  L.marker([me.lat,me.lon],{icon:icon('mk-me','',16)})
+  L.marker([me.lat,me.lon],{icon:icon('mk-me','',12),zIndexOffset:1000})
     .bindPopup('<b>You are here</b>').addTo(layer);
   pts.push([me.lat,me.lon]);
 
-  L.marker([A.lat,A.lon],{icon:icon('mk-bike','★',32),zIndexOffset:600})
+  L.marker([A.lat,A.lon],{icon:icon('mk-bike','★',20),zIndexOffset:600})
     .bindPopup(`<b>${tidy(A.name)}</b><br>${dist(pick.walk)} walk from you`)
     .addTo(layer);
   pts.push([A.lat,A.lon]);
@@ -522,7 +524,7 @@ function drawMap(pick){
   hubOpts.forEach((o,i)=>{
     const best=i===chosenHub;
     L.marker([o.hub.lat,o.hub.lon],
-      {icon:icon('mk-hub'+(best?' best':''),i+1,best?30:26),zIndexOffset:best?500:300})
+      {icon:icon('mk-hub'+(best?' best':''),i+1,best?20:18),zIndexOffset:best?500:300})
       .bindPopup(`<b>${o.hub.name}</b><br>${dist(o.ride)} ride from the bike`+
         (o.next?`<br>then ${dist(o.hand)} walk to ${tidy(o.next.name)}`:''))
       .on('click',()=>{ chosenHub=i; render(); })
@@ -535,7 +537,7 @@ function drawMap(pick){
     L.polyline([[A.lat,A.lon],[sel.hub.lat,sel.hub.lon]],
       {color:'#1B4B6B',weight:3.5,opacity:.85}).addTo(layer);
     if(sel.next){
-      L.marker([sel.next.lat,sel.next.lon],{icon:icon('mk-next','▸',20)})
+      L.marker([sel.next.lat,sel.next.lon],{icon:icon('mk-next','▸',14)})
         .bindPopup(`<b>${tidy(sel.next.name)}</b><br>your next stray`).addTo(layer);
       L.polyline([[sel.hub.lat,sel.hub.lon],[sel.next.lat,sel.next.lon]],
         {color:'#14181A',weight:2,dashArray:'3,5',opacity:.6}).addTo(layer);
@@ -546,7 +548,7 @@ function drawMap(pick){
   ranked.slice(1,7).forEach(r=>{
     if(sel&&sel.next&&r.bike.bike_id===sel.next.bike_id) return;
     L.circleMarker([r.bike.lat,r.bike.lon],
-      {radius:5,color:'#14181A',weight:1.5,fillColor:'#E6E8E4',fillOpacity:1})
+      {radius:4,color:'#14181A',weight:1.5,fillColor:'#E6E8E4',fillOpacity:1})
       .bindPopup(`<b>${tidy(r.bike.name)}</b><br>${dist(r.walk)} from you`).addTo(layer);
   });
 
