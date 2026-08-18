@@ -21,6 +21,7 @@ Usage:
     python sobi_client.py networks
     python sobi_client.py report-issue --bike-id 12345678 --description "flat tire"
     python sobi_client.py rfids
+    python sobi_client.py friends
     python sobi_client.py routes
     python sobi_client.py search --query "some friend"
     python sobi_client.py subscriptions
@@ -248,6 +249,11 @@ def cmd_rfid_delete(args, auth):
     print(json.dumps(api_request(auth, "DELETE", path), indent=2))
 
 
+def cmd_friends(args, auth):
+    params = {"page": args.page, "per_page": args.per_page}
+    print(json.dumps(api_request(auth, "GET", "/friends.json", params), indent=2))
+
+
 def cmd_routes(args, auth):
     print(json.dumps(api_request(auth, "GET", "/routes.json"), indent=2))
 
@@ -352,6 +358,11 @@ def main():
     p_rfid_delete = sub.add_parser("rfid-delete", help="Delete a registered RFID card")
     p_rfid_delete.add_argument("--rfid-id", type=int, required=True)
     p_rfid_delete.set_defaults(func=cmd_rfid_delete)
+
+    p_friends = sub.add_parser("friends", help="List your friends on the network")
+    p_friends.add_argument("--page", type=int, default=1)
+    p_friends.add_argument("--per-page", type=int, default=25)
+    p_friends.set_defaults(func=cmd_friends)
 
     sub.add_parser("routes", help="Show your trip history").set_defaults(func=cmd_routes)
 
