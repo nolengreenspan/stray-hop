@@ -19,12 +19,17 @@ Usage:
     python sobi_client.py cancel
     python sobi_client.py current
     python sobi_client.py networks
+    python sobi_client.py areas
     python sobi_client.py report-issue --bike-id 12345678 --description "flat tire"
     python sobi_client.py rfids
+    python sobi_client.py friends
     python sobi_client.py routes
     python sobi_client.py search --query "some friend"
     python sobi_client.py subscriptions
     python sobi_client.py invoices
+    python sobi_client.py update-info --first-name Sam --privacy-hide-from-search true
+    python sobi_client.py update-email --email you@example.com
+    python sobi_client.py update-password
 """
 import argparse
 import base64
@@ -86,6 +91,16 @@ def cmd_me(args, auth):
 
 def cmd_networks(args, auth):
     print(json.dumps(api_request(auth, "GET", "/networks.json", {"subscribed": "true"}), indent=2))
+
+
+def cmd_areas(args, auth):
+    params = {"network_ids": args.network_id}
+    print(json.dumps(api_request(auth, "GET", "/areas.json", params), indent=2))
+
+
+def cmd_area(args, auth):
+    path = f"/areas/{args.area_id}.json"
+    print(json.dumps(api_request(auth, "GET", path), indent=2))
 
 
 def cmd_hubs(args, auth):
@@ -248,6 +263,11 @@ def cmd_rfid_delete(args, auth):
     print(json.dumps(api_request(auth, "DELETE", path), indent=2))
 
 
+def cmd_friends(args, auth):
+    params = {"page": args.page, "per_page": args.per_page}
+    print(json.dumps(api_request(auth, "GET", "/friends.json", params), indent=2))
+
+
 def cmd_routes(args, auth):
     print(json.dumps(api_request(auth, "GET", "/routes.json"), indent=2))
 
@@ -283,12 +303,78 @@ def cmd_invoice_pay(args, auth):
     print(json.dumps(api_request(auth, "POST", path), indent=2))
 
 
+def bool_arg(v):
+    s = str(v).strip().lower()
+    if s in ("true", "yes", "on", "1"):
+        return "true"
+    if s in ("false", "no", "off", "0"):
+        return "false"
+    raise argparse.ArgumentTypeError(f"expected true or false, got {v!r}")
+
+
+def cmd_update_info(args, auth):
+    fields = {
+        "first_name": args.first_name,
+        "last_name": args.last_name,
+        "phone_number": args.phone_number,
+        "zip_code": args.zip_code,
+        "pin_code": args.pin_code,
+        "locale": args.locale,
+        "timezone_name": args.timezone_name,
+        "units_of_measurement": args.units,
+        "privacy_default_sobi": args.privacy_default_sobi,
+        "privacy_non_friends_view": args.privacy_non_friends_view,
+        "privacy_hide_from_search_results": args.privacy_hide_from_search,
+        "skip_pin_on_rfid_booking": args.skip_pin_on_rfid_booking,
+    }
+    data = {k: v for k, v in fields.items() if v is not None}
+    if not data:
+        print("Nothing to update -- pass at least one field (see --help).", file=sys.stderr)
+        sys.exit(1)
+    if not confirm(f"Update {', '.join(sorted(data))} on your account?"):
+        print("Cancelled.")
+        return
+    print(json.dumps(api_request(auth, "PATCH", "/users/update_info.json", data=data), indent=2))
+
+
+def cmd_update_email(args, auth):
+    if not confirm(f"Change your account email to {args.email}?"):
+        print("Cancelled.")
+        return
+    data = {"email": args.email, "password": getpass.getpass("Current password (hidden): ")}
+    print(json.dumps(api_request(auth, "PATCH", "/users/update_email.json", data=data), indent=2))
+    print("Email changed -- future commands will need the new address.", file=sys.stderr)
+
+
+def cmd_update_password(args, auth):
+    if not confirm("Change your account password?"):
+        print("Cancelled.")
+        return
+    old_password = getpass.getpass("Current password (hidden): ")
+    password = getpass.getpass("New password (hidden): ")
+    if password != getpass.getpass("New password again (hidden): "):
+        print("Passwords did not match -- nothing was changed.", file=sys.stderr)
+        sys.exit(1)
+    data = {"password": password, "old_password": old_password}
+    print(json.dumps(api_request(auth, "PATCH", "/users/update_password.json", data=data), indent=2))
+    print("Password changed -- future commands will need the new one.", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Hamilton Bike Share (SoBi) companion CLI")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("me", help="Show your account profile").set_defaults(func=cmd_me)
     sub.add_parser("networks", help="List networks you're subscribed to").set_defaults(func=cmd_networks)
+
+    p_areas = sub.add_parser("areas", help="List service areas for a network")
+    p_areas.add_argument("--network-id", type=int, default=HAMILTON_NETWORK_ID)
+    p_areas.set_defaults(func=cmd_areas)
+
+    p_area = sub.add_parser("area", help="Show a single service area")
+    p_area.add_argument("--area-id", type=int, required=True)
+    p_area.set_defaults(func=cmd_area)
+
     sub.add_parser("current", help="Show your current active rental").set_defaults(func=cmd_current)
     sub.add_parser("rentals", help="List your rental history").set_defaults(func=cmd_rentals)
 
@@ -353,6 +439,11 @@ def main():
     p_rfid_delete.add_argument("--rfid-id", type=int, required=True)
     p_rfid_delete.set_defaults(func=cmd_rfid_delete)
 
+    p_friends = sub.add_parser("friends", help="List your friends on the network")
+    p_friends.add_argument("--page", type=int, default=1)
+    p_friends.add_argument("--per-page", type=int, default=25)
+    p_friends.set_defaults(func=cmd_friends)
+
     sub.add_parser("routes", help="Show your trip history").set_defaults(func=cmd_routes)
 
     p_route = sub.add_parser("route", help="Show a single trip's details")
@@ -375,6 +466,32 @@ def main():
     p_invoice_pay = sub.add_parser("invoice-pay", help="Pay an invoice (charges the payment method on file)")
     p_invoice_pay.add_argument("--invoice-id", type=int, required=True)
     p_invoice_pay.set_defaults(func=cmd_invoice_pay)
+
+    p_up_info = sub.add_parser("update-info",
+                               help="Update your profile fields (only the ones you pass)")
+    p_up_info.add_argument("--first-name")
+    p_up_info.add_argument("--last-name")
+    p_up_info.add_argument("--phone-number")
+    p_up_info.add_argument("--zip-code")
+    p_up_info.add_argument("--pin-code", help="Keypad PIN used to unlock bikes")
+    p_up_info.add_argument("--locale", help="e.g. en, fr")
+    p_up_info.add_argument("--timezone-name", help="e.g. America/New_York")
+    p_up_info.add_argument("--units", choices=["metric", "imperial"],
+                           help="units_of_measurement")
+    p_up_info.add_argument("--privacy-default-sobi", type=bool_arg, metavar="true|false")
+    p_up_info.add_argument("--privacy-non-friends-view", type=bool_arg, metavar="true|false")
+    p_up_info.add_argument("--privacy-hide-from-search", type=bool_arg, metavar="true|false")
+    p_up_info.add_argument("--skip-pin-on-rfid-booking", type=bool_arg, metavar="true|false")
+    p_up_info.set_defaults(func=cmd_update_info)
+
+    p_up_email = sub.add_parser("update-email",
+                                help="Change your account email (prompts for your password)")
+    p_up_email.add_argument("--email", required=True)
+    p_up_email.set_defaults(func=cmd_update_email)
+
+    sub.add_parser("update-password",
+                   help="Change your account password (prompts for old and new)"
+                   ).set_defaults(func=cmd_update_password)
 
     p_find = sub.add_parser("find-bike", help="Find nearest available bikes + Google Maps directions")
     p_find.add_argument("--network-id", type=int, default=HAMILTON_NETWORK_ID)
