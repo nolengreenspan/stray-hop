@@ -19,6 +19,7 @@ Usage:
     python sobi_client.py cancel
     python sobi_client.py current
     python sobi_client.py networks
+    python sobi_client.py areas
     python sobi_client.py report-issue --bike-id 12345678 --description "flat tire"
     python sobi_client.py rfids
     python sobi_client.py friends
@@ -87,6 +88,16 @@ def cmd_me(args, auth):
 
 def cmd_networks(args, auth):
     print(json.dumps(api_request(auth, "GET", "/networks.json", {"subscribed": "true"}), indent=2))
+
+
+def cmd_areas(args, auth):
+    params = {"network_ids": args.network_id}
+    print(json.dumps(api_request(auth, "GET", "/areas.json", params), indent=2))
+
+
+def cmd_area(args, auth):
+    path = f"/areas/{args.area_id}.json"
+    print(json.dumps(api_request(auth, "GET", path), indent=2))
 
 
 def cmd_hubs(args, auth):
@@ -295,6 +306,15 @@ def main():
 
     sub.add_parser("me", help="Show your account profile").set_defaults(func=cmd_me)
     sub.add_parser("networks", help="List networks you're subscribed to").set_defaults(func=cmd_networks)
+
+    p_areas = sub.add_parser("areas", help="List service areas for a network")
+    p_areas.add_argument("--network-id", type=int, default=HAMILTON_NETWORK_ID)
+    p_areas.set_defaults(func=cmd_areas)
+
+    p_area = sub.add_parser("area", help="Show a single service area")
+    p_area.add_argument("--area-id", type=int, required=True)
+    p_area.set_defaults(func=cmd_area)
+
     sub.add_parser("current", help="Show your current active rental").set_defaults(func=cmd_current)
     sub.add_parser("rentals", help="List your rental history").set_defaults(func=cmd_rentals)
 
